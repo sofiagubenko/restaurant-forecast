@@ -11,7 +11,7 @@ def load_file(uploaded_file) -> pd.DataFrame:
 def detect_date_column(df: pd.DataFrame) -> str | None:
     for col in df.columns:
         try:
-            pd.to_datetime(df[col], dayfirst=True, infer_datetime_format=True)
+            pd.to_datetime(df[col], infer_datetime_format=True)
             return col
         except Exception:
             continue
@@ -20,7 +20,19 @@ def detect_date_column(df: pd.DataFrame) -> str | None:
 
 def prepare_daily(df: pd.DataFrame, date_col: str, value_col: str) -> pd.DataFrame:
     df = df.copy()
-    df[date_col] = pd.to_datetime(df[date_col], dayfirst=True, infer_datetime_format=True)
+
+    # Пробуємо різні формати дати по черзі
+    for dayfirst in [False, True]:
+        try:
+            df[date_col] = pd.to_datetime(
+                df[date_col],
+                dayfirst=dayfirst,
+                infer_datetime_format=True
+            )
+            break
+        except Exception:
+            continue
+
     daily = df.groupby(date_col)[value_col].sum().reset_index()
     daily.columns = ['ds', 'y']
     daily = daily.sort_values('ds').reset_index(drop=True)
