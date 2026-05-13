@@ -120,6 +120,35 @@ else:
 with st.expander("👀 Попередній перегляд даних", expanded=False):
     st.dataframe(df.head(10), use_container_width=True)
 
+# ---- Фільтрація по категорії ----
+categorical_cols = [
+    col for col in df.columns
+    if col not in [date_col, value_col]
+    and (df[col].dtype == 'object' or (df[col].dtype in ['int64', 'int32'] and df[col].nunique() <= 50))
+    and df[col].nunique() <= 50
+    and df[col].nunique() >= 2
+]
+
+if categorical_cols:
+    st.subheader("🔍 Фільтрація даних")
+    filter_col = st.selectbox(
+        "Фільтрувати по колонці (необов'язково)",
+        options=["Без фільтру"] + categorical_cols
+    )
+
+    if filter_col != "Без фільтру":
+        unique_values = sorted(df[filter_col].dropna().unique().tolist())
+        selected_values = st.multiselect(
+            f"Оберіть значення ({filter_col})",
+            options=unique_values,
+            default=unique_values
+        )
+        if selected_values:
+            df = df[df[filter_col].isin(selected_values)].copy()
+            st.info(f"🔍 Відфільтровано: {len(df)} рядків з {filter_col} = {', '.join(map(str, selected_values))}")
+        else:
+            st.warning("⚠️ Не обрано жодного значення — показуються всі дані.")
+
 # Підготовка даних
 try:
     daily_raw = prepare_daily(df, date_col, value_col)
@@ -405,11 +434,19 @@ with tab3:
 
         if arima_mape and baseline_mape:
             best_alt = min(baseline_mape, arima_mape)
+            best_alt_name = "Baseline" if baseline_mape < arima_mape else "ARIMA"
             improvement = round(best_alt - prophet_mape, 1)
-            st.success(
-                f"✅ Prophet перевершує альтернативні методи: "
-                f"точність краща на {improvement}% від найкращого з порівнюваних методів."
-            )
+            if improvement > 0:
+                st.success(
+                    f"✅ Prophet перевершує альтернативні методи: "
+                    f"точність краща на {improvement}% від {best_alt_name}."
+                )
+            else:
+                st.info(
+                    f"ℹ️ На цьому датасеті {best_alt_name} показує кращий результат "
+                    f"(MAPE {best_alt}% vs Prophet {prophet_mape}%). "
+                    f"Це може бути пов'язано з малим обсягом даних або специфікою датасету."
+                )
 
         # Графік прогнозу
         st.markdown("### 📉 Прогноз виручки")
